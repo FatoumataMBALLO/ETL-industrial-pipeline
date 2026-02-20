@@ -1,0 +1,10 @@
+apache-airflow
+pyspark
+boto3
+minio
+requests
+beautifulsoup4
+pandas
+psycopg2-binary
+pytest
+python-dotenv
