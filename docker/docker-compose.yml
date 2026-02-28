@@ -1,7 +1,4 @@
-version: "3.8"
-
 services:
-
   spark:
     image: apache/spark:3.5.1
     container_name: spark-container
@@ -10,27 +7,33 @@ services:
     working_dir: /app
     command: tail -f /dev/null
 
+  postgres:
+    image: postgres:15
+    container_name: etl-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+
   airflow:
     image: apache/airflow:2.8.1
     container_name: airflow-container
-    restart: always
     depends_on:
+      - postgres
       - spark
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
     volumes:
       - ../dags:/opt/airflow/dags
       - ../:/app
     ports:
       - "8080:8080"
-    command: standalone
-
-  postgres:
-    image: postgres
-    container_name: etl-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    ports:
-      - "5432:5432"
+    command: >
+      bash -c "
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com &&
+      airflow standalone
+      "
