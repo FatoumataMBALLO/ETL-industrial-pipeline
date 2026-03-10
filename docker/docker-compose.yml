@@ -1,6 +1,16 @@
-version: "3.8"
-
 services:
+
+  postgres:
+    image: postgres:15
+    container_name: etl-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: etl
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   spark:
     image: apache/spark:3.5.1
@@ -10,27 +20,5 @@ services:
     working_dir: /app
     command: tail -f /dev/null
 
-  airflow:
-    image: apache/airflow:2.8.1
-    container_name: airflow-container
-    restart: always
-    depends_on:
-      - spark
-    environment:
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    volumes:
-      - ../dags:/opt/airflow/dags
-      - ../:/app
-    ports:
-      - "8080:8080"
-    command: standalone
-
-  postgres:
-    image: postgres
-    container_name: etl-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    ports:
-      - "5432:5432"
+volumes:
+  postgres_data:

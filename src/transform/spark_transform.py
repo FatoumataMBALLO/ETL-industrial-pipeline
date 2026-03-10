@@ -25,3 +25,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+    df_clean.write \
+    .format("jdbc") \
+    .option("url", "jdbc:postgresql://etl-postgres:5432/postgres") \
+    .option("dbtable", "public.sales_clean") \
+    .option("user", "postgres") \
+    .option("password", "postgres") \
+    .option("driver", "org.postgresql.Driver") \
+    .mode("overwrite") \
+    .save()
