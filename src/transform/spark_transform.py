@@ -1,36 +1,39 @@
 from pyspark.sql import SparkSession
-from src.utils.logger import get_logger
 
-logger = get_logger(__name__)
 
 def main():
+
     spark = SparkSession.builder \
         .appName("ETL Transform") \
         .getOrCreate()
 
     input_path = "/app/data/input/data.csv"
-    output_path = "/app/data/output"
 
+    # Lire le CSV
     df = spark.read.csv(input_path, header=True, inferSchema=True)
 
-    # Exemple transformation
-    df_clean = df.dropDuplicates()
+    # Transformation simple
+    df = df.withColumn("total", df.price * df.quantity)
 
-    df_clean.write.mode("overwrite").parquet(output_path)
+    # Configuration PostgreSQL
+    url = "jdbc:postgresql://etl-postgres:5432/etl"
 
-    logger.info("Transformation completed successfully.")
+    properties = {
+        "user": "postgres",
+        "password": "postgres",
+        "driver": "org.postgresql.Driver"
+    }
+
+    # Écrire dans PostgreSQL
+    df.write.jdbc(
+        url=url,
+        table="transactions",
+        mode="overwrite",
+        properties=properties
+    )
 
     spark.stop()
 
 
 if __name__ == "__main__":
     main()
-    df_clean.write \
-    .format("jdbc") \
-    .option("url", "jdbc:postgresql://etl-postgres:5432/postgres") \
-    .option("dbtable", "public.sales_clean") \
-    .option("user", "postgres") \
-    .option("password", "postgres") \
-    .option("driver", "org.postgresql.Driver") \
-    .mode("overwrite") \
-    .save()
