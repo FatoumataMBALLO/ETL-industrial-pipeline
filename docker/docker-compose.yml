@@ -1,8 +1,11 @@
+version: "3.9"
+
 services:
 
   postgres:
     image: postgres:15
     container_name: etl-postgres
+    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -15,6 +18,8 @@ services:
   spark:
     image: apache/spark:3.5.1
     container_name: spark-container
+    depends_on:
+      - postgres
     volumes:
       - ../:/app
     working_dir: /app
@@ -23,13 +28,14 @@ services:
   minio:
     image: minio/minio:latest
     container_name: minio
+    restart: always
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: password123
-    command: server /data --console-address ":9001"
+    command: server /data --console-address "0.0.0.0:9001"
     volumes:
       - minio_data:/data
 
