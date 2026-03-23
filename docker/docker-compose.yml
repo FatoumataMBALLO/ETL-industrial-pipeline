@@ -10,6 +10,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   spark:
     image: apache/spark:3.5.1
@@ -47,8 +52,49 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 admin password123 &&
       mc mb --ignore-existing local/etl-data &&
-      echo '✅ Bucket etl-data créé avec succès'
+      echo '✅ Bucket etl-data créé'
       "
+
+  airflow:
+    image: apache/airflow:2.8.1
+    container_name: airflow
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@etl-postgres:5432/etl
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    env_file:
+      - ../.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../src:/opt/airflow/src
+      - ../data:/opt/airflow/data
+      - ../logs:/opt/airflow/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      bash -c "
+        pip install minio python-dotenv requests beautifulsoup4 pandas -q &&
+        airflow db migrate &&
+        airflow users create
+          --username admin
+          --password admin
+          --firstname Admin
+          --lastname Admin
+          --role Admin
+          --email admin@example.com 2>/dev/null || true &&
+        airflow webserver &
+        airflow scheduler
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   postgres_data:
