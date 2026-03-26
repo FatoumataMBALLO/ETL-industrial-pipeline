@@ -1,4 +1,5 @@
 services:
+  # --- BASE DE DONNÉES ---
   postgres:
     image: postgres:15
     container_name: etl-postgres
@@ -10,20 +11,15 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - etl-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
 
-  spark:
-    image: apache/spark:3.5.1
-    container_name: spark-container
-    volumes:
-      - ../:/app
-    working_dir: /app
-    command: tail -f /dev/null
-
+  # --- STOCKAGE OBJET ---
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -36,6 +32,8 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    networks:
+      - etl-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -48,6 +46,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    networks:
+      - etl-network
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 admin password123 &&
@@ -55,15 +55,21 @@ services:
       echo '✅ Bucket etl-data créé'
       "
 
+# --- ORCHESTRATEUR ---
   airflow:
     image: apache/airflow:2.8.1
     container_name: airflow
+    # On repasse en root (0) pour pouvoir installer Java, puis on repassera en airflow (50000)
+    user: "0" 
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@etl-postgres:5432/etl
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      PYTHONPATH: /opt/airflow
+      # Ajout de JAVA_HOME pour que Spark sache où est Java
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     env_file:
       - ../.env
     ports:
@@ -73,28 +79,26 @@ services:
       - ../src:/opt/airflow/src
       - ../data:/opt/airflow/data
       - ../logs:/opt/airflow/logs
+      - ../docker:/opt/airflow/docker
+    networks:
+      - etl-network
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       bash -c "
-        pip install minio python-dotenv requests beautifulsoup4 pandas -q &&
-        airflow db migrate &&
-        airflow users create
-          --username admin
-          --password admin
-          --firstname Admin
-          --lastname Admin
-          --role Admin
-          --email admin@example.com 2>/dev/null || true &&
-        airflow webserver &
-        airflow scheduler
-      "
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      apt-get update && apt-get install -y default-jre &&
+      su -s /bin/bash airflow -c \"
+      pip install --upgrade pip -q &&
+      pip install minio python-dotenv requests beautifulsoup4 pandas pyspark psycopg2-binary -q &&
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com 2>/dev/null || true &&
+      (airflow webserver & airflow scheduler)
+      \""
+
+networks:
+  etl-network:
+    driver: bridge
 
 volumes:
   postgres_data:

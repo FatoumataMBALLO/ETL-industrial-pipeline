@@ -1,37 +1,40 @@
-import sqlite3
-import pandas as pd
-from datetime import datetime
+import psycopg2
+import csv
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
-def extract_sales_data():
-    # Chemin base SQLite
-    db_path = "data/sales.db"
+def extract_sql():
+    """Fonction principale appelée par le DAG et run_pipeline"""
+    print("📥 Extraction des données SQL en cours...")
+    
+    # Récupération des config
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    db = os.getenv("POSTGRES_DB", "etl")
+    user = os.getenv("POSTGRES_USER", "postgres")
+    password = os.getenv("POSTGRES_PASSWORD", "postgres")
 
-    if not os.path.exists(db_path):
-        print("Base SQLite introuvable.")
-        return
+    try:
+        conn = psycopg2.connect(host=host, database=db, user=user, password=password)
+        cur = conn.cursor()
+        
+        # On vérifie si la table existe (à adapter selon ta table source)
+        cur.execute("SELECT * FROM users LIMIT 100;") 
+        rows = cur.fetchall()
+        
+        os.makedirs("data/raw", exist_ok=True)
+        with open("data/raw/extract_sql.csv", "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([desc[0] for desc in cur.description])
+            writer.writerows(rows)
+            
+        print("✅ Données extraites avec succès dans data/raw/extract_sql.csv")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Erreur lors de l'extraction SQL : {e}")
 
-    conn = sqlite3.connect(db_path)
-
-    query = "SELECT * FROM sales"
-
-    df = pd.read_sql_query(query, conn)
-
-    conn.close()
-
-    if df.empty:
-        print("Aucune donnée trouvée dans la table sales.")
-        return
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"data/raw/sales_{timestamp}.csv"
-
-    df.to_csv(output_path, index=False)
-
-    print(f"Fichier généré : {output_path}")
-
-
+# Pour pouvoir tester le script seul
 if __name__ == "__main__":
-    extract_sales_data()
-
+    extract_sql()
