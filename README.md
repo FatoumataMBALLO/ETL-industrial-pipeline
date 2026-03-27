@@ -3,12 +3,13 @@
 Pipeline ETL industriel complet automatisant la collecte, la transformation et le stockage de données hétérogènes.
 
 ## 🏗️ Architecture du Projet
-- **Sources :** 1. **Web Scraping** : Extraction dynamique (BeautifulSoup) depuis `books.toscrape.com`.
-    2. **Fichiers Structurés** : Ingestion de fichiers CSV (données historiques).
-    3. **Base de Données SQL** : Jointure avec un référentiel PostgreSQL (`ref_categories`) pour enrichir les données.
-- **Orchestration :** Airflow (Dockerisé)
-- **Traitement :** PySpark
-- **Stockage :** MinIO (Data Lake) & PostgreSQL (Data Warehouse)
+- Sources :
+ 1. Web Scraping : Extraction dynamique (BeautifulSoup) depuis `books.toscrape.com`.
+2. Fichiers Structurés : Ingestion de fichiers CSV (données historiques).
+3. Base de Données SQL : Jointure avec un référentiel PostgreSQL (`ref_categories`) pour enrichir les données.
+- Orchestration : Airflow (Dockerisé)
+- Traitement : PySpark
+- Stockage : MinIO (Data Lake) & PostgreSQL (Data Warehouse)
 
 ## 🛠️ Installation & Utilisation
 1. Lancer l'infrastructure : `docker-compose up -d`
@@ -41,7 +42,7 @@ SELECT
     round(avg(price_gbp)::numeric, 2) as prix_moyen 
 FROM dim_books;
 ```
-🧪 Qualité du Code & Tests (Critère 4.2)
+### 🧪 Qualité du Code & Tests (Critère 4.2)
 Le projet suit les standards industriels avec une suite de tests automatisés.
 
 Outil : Pytest / Pytest-cov
