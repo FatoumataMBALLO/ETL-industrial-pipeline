@@ -4,57 +4,60 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-# --- CONFIGURATION DES CHEMINS (FORCE) ---
-# Dans Docker, le dossier 'docker' est dans /opt/airflow/docker
+# 1. Configuration des chemins pour Airflow
 sys.path.append('/opt/airflow')
-sys.path.append('/opt/airflow/docker')
+sys.path.append('/opt/airflow/src')
 
-# --- IMPORTS DES SCRIPTS ---
-try:
-    from src.extract.extract_csv import extract_csv
-    from src.extract.scrape_books import scrape_books
-    from src.extract.extract_sql import extract_sql
-    from src.extract.extract_api import extract_api
-    from src.load.load_to_minio import upload_files
-    
-    # On importe le fichier spark_transform.py qui est dans le dossier docker
-    import spark_transform
-    # On récupère la fonction main
-    spark_main = spark_transform.main
-    
-    print("✅ Configuration des imports terminée avec succès.")
-except Exception as e:
-    print(f"❌ Erreur d'importation : {e}")
-    # Fonction de secours pour éviter que le DAG ne disparaisse
-    def spark_main():
-        print("Erreur : le script spark_transform n'a pas pu être chargé.")
+# 2. Fonctions de "Wrapper" pour éviter les erreurs d'import au chargement
+def run_scrape():
+    from extract.scrape_books import scrape_books
+    return scrape_books()
 
-# --- ARGUMENTS PAR DÉFAUT ---
+def run_load(**kwargs):
+    from load.load_to_minio import upload_files
+    return upload_files(
+        local_file_path="/opt/airflow/books_data.csv",
+        source_name='web',
+        **kwargs
+    )
+
+def run_spark_logic(**kwargs):
+    # Import local à l'intérieur de la fonction pour ne pas bloquer le DAG
+    from transform.spark_transform import main
+    return main()
+
+# 3. Définition du DAG
 default_args = {
     'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
+    'start_date': datetime(2026, 3, 27),
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=1),
 }
 
-# --- DÉFINITION DU DAG ---
+# ... (le début du fichier reste identique)
+
 with DAG(
-    'etl_industrial_pipeline_v2',
+    'etl_industrial_pipeline_v3',
     default_args=default_args,
-    description='Pipeline ETL Industriel complet',
-    schedule_interval=None,
-    catchup=False,
-    tags=['production']
+    schedule=None,  # <-- C'est ici qu'on corrige !
+    catchup=False
 ) as dag:
 
-    t1 = PythonOperator(task_id='extract_csv', python_callable=extract_csv)
-    t2 = PythonOperator(task_id='scrape_books', python_callable=scrape_books)
-    t3 = PythonOperator(task_id='extract_sql', python_callable=extract_sql)
-    t4 = PythonOperator(task_id='extract_api', python_callable=extract_api)
-    t5 = PythonOperator(task_id='load_to_minio', python_callable=upload_files)
+# ... (le reste reste identique)
 
-    # Utilisation de la fonction récupérée plus haut
-    t6 = PythonOperator(task_id='spark_transform', python_callable=spark_main)
+    t_scrape = PythonOperator(
+        task_id='scrape_books',
+        python_callable=run_scrape
+    )
 
-    [t1, t2, t3, t4] >> t5 >> t6
+    t_load = PythonOperator(
+        task_id='load_to_minio',
+        python_callable=run_load
+    )
+
+    t_spark = PythonOperator(
+        task_id='spark_transform',
+        python_callable=run_spark_logic
+    )
+
+    t_scrape >> t_load >> t_spark

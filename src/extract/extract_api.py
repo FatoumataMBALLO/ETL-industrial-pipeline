@@ -1,6 +1,11 @@
 import requests
 import json
 import os
+import logging
+
+# Création du logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 def extract_api():
     print("📥 Extraction des données API...")
