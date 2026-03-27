@@ -59,5 +59,10 @@ src/utils/logger.py              15      0   100%
 TOTAL                            46      1    98%
 ```
 
+Validation des données (CLI) : > Bien que les captures d'écran confirment le succès visuel, l'intégrité du partitionnement Silver (rating=Five, etc.) a été validée via le client mc de MinIO pour garantir la structure physique des fichiers Parquet.
+```
+docker exec minio mc ls -r myminio/etl-data/silver/books_partitioned
+```
+
 Projet réalisé pour démontrer des compétences en architecture de données et automatisation de pipelines industriels.
 
